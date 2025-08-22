@@ -1,0 +1,726 @@
+---
+title: "3_income_importance_for_brazilian_migration"
+author: "Lucas Salamuni - 7429674"
+date: "2025-08-21"
+output: pdf_document
+---
+
+# Packages
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# I. Load required packages
+packages <- c("dplyr", "knitr", "tinytex", "readxl", "tidyr", "fastDummies",
+              "sandwich", "lmtest", "estimatr", "purrr", "tibble", "writexl", 
+              "readr", "stringr", "sf", "rnaturalearth", "dplyr", "units",
+              "igraph", "countrycode", "geosphere", "haven", "glmnet", 
+              "gravity", "modelsummary", "fixest", "sessioninfo")
+
+# II. Install packages if not already installed
+if(sum(as.numeric(!packages %in% installed.packages())) != 0){ 
+  instalador <- packages[!packages %in% installed.packages()] 
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(packages, require, character = T)
+} else {
+  sapply(packages, require, character = T)
+}
+
+```
+
+---
+
+## Session info
+```{r echo=TRUE}
+
+session_info()
+
+```
+
+---
+
+# **Part 3. Income Importance for Brazilian Migration**
+
+## Dataset creation (BRA)
+```{r echo=TRUE}
+
+# I. Load Brazilian expats data
+BRA <- read_excel(path = "Datasets/BRA_expats.xlsx",
+                  sheet = "Sheet1")
+
+load("Auxiliary/country_mapping.RData")
+
+# II. Join with country mapping
+BRA <- BRA %>%
+  left_join(country_mapping, by = "cont") %>%
+  rename(reg = reg.x) %>%
+  dplyr::select(c(contcod, cont, reg, pop)) %>%
+  filter(contcod != is.na(contcod)) %>%
+  
+  # III. Add official language for each country
+  mutate(official_language = case_when(
+    contcod == "ALB" ~ "Albanian",
+    contcod == "DZA" ~ "Standard Arabic", 
+    contcod == "AGO" ~ "Portuguese",
+    contcod == "ARG" ~ "Spanish",
+    contcod == "ARM" ~ "Armenian",
+    contcod == "AUS" ~ "English",
+    contcod == "AUT" ~ "German",
+    contcod == "AZE" ~ "Azerbaijani",
+    contcod == "BGD" ~ "Bengali",
+    contcod == "BLR" ~ "Belarusian",
+    contcod == "BEL" ~ "Dutch",
+    contcod == "BEN" ~ "French",
+    contcod == "BTN" ~ "Dzongkha",
+    contcod == "BOL" ~ "Spanish",
+    contcod == "BIH" ~ "Bosnian Standard",
+    contcod == "BWA" ~ "English",
+    contcod == "BRA" ~ "Portuguese",
+    contcod == "BGR" ~ "Bulgarian",
+    contcod == "BFA" ~ "French",
+    contcod == "BDI" ~ "French",
+    contcod == "KHM" ~ "Khmer",
+    contcod == "CMR" ~ "French",
+    contcod == "CAN" ~ "English",
+    contcod == "CPV" ~ "Portuguese",
+    contcod == "CAF" ~ "French",
+    contcod == "TCD" ~ "French",
+    contcod == "CHL" ~ "Spanish",
+    contcod == "CHN" ~ "Chinese",
+    contcod == "COL" ~ "Spanish",
+    contcod == "COM" ~ "Standard Arabic",
+    contcod == "COG" ~ "French",
+    contcod == "CRI" ~ "Spanish",
+    contcod == "CIV" ~ "French",
+    contcod == "HRV" ~ "Croatian Standard",
+    contcod == "CZE" ~ "Czech",
+    contcod == "COD" ~ "French",
+    contcod == "DNK" ~ "Danish",
+    contcod == "DJI" ~ "French",
+    contcod == "DOM" ~ "Spanish",
+    contcod == "ECU" ~ "Spanish",
+    contcod == "EGY" ~ "Standard Arabic",
+    contcod == "SLV" ~ "Spanish",
+    contcod == "EST" ~ "Estonian",
+    contcod == "ETH" ~ "Amharic",
+    contcod == "FJI" ~ "English",
+    contcod == "FIN" ~ "Finnish",
+    contcod == "FRA" ~ "French",
+    contcod == "GAB" ~ "French",
+    contcod == "GMB" ~ "English",
+    contcod == "GEO" ~ "Georgian",
+    contcod == "DEU" ~ "German",
+    contcod == "GHA" ~ "English",
+    contcod == "GRC" ~ "Greek",
+    contcod == "GTM" ~ "Spanish",
+    contcod == "GIN" ~ "French",
+    contcod == "GNB" ~ "Portuguese",
+    contcod == "GUY" ~ "English",
+    contcod == "HTI" ~ "French",
+    contcod == "HND" ~ "Spanish",
+    contcod == "HKG" ~ "Chinese",
+    contcod == "HUN" ~ "Hungarian",
+    contcod == "ISL" ~ "Icelandic",
+    contcod == "IND" ~ "Hindi",
+    contcod == "IDN" ~ "Standard Indonesian",
+    contcod == "IRN" ~ "Persian",
+    contcod == "IRQ" ~ "Standard Arabic",
+    contcod == "IRL" ~ "English",
+    contcod == "ISR" ~ "Hebrew",
+    contcod == "ITA" ~ "Italian",
+    contcod == "JAM" ~ "English",
+    contcod == "JPN" ~ "Japanese",
+    contcod == "JOR" ~ "Standard Arabic",
+    contcod == "KAZ" ~ "Kazakh",
+    contcod == "KEN" ~ "Swahili",
+    contcod == "KGZ" ~ "Kirghiz",
+    contcod == "LAO" ~ "Lao",
+    contcod == "LVA" ~ "Standard Latvian",
+    contcod == "LBN" ~ "Standard Arabic",
+    contcod == "LSO" ~ "English",
+    contcod == "LBR" ~ "English",
+    contcod == "LTU" ~ "Lithuanian",
+    contcod == "LUX" ~ "French",
+    contcod == "MKD" ~ "Macedonian",
+    contcod == "MDG" ~ "Malagasy",
+    contcod == "MWI" ~ "English",
+    contcod == "MYS" ~ "Standard Malay",
+    contcod == "MDV" ~ "Dhivehi",
+    contcod == "MLI" ~ "French",
+    contcod == "MLT" ~ "Maltese",
+    contcod == "MRT" ~ "Standard Arabic",
+    contcod == "MUS" ~ "English",
+    contcod == "MEX" ~ "Spanish",
+    contcod == "MDA" ~ "Romanian",
+    contcod == "MNG" ~ "Mongolian",
+    contcod == "MNE" ~ "Serbian",
+    contcod == "MAR" ~ "Standard Arabic",
+    contcod == "MOZ" ~ "Portuguese",
+    contcod == "MMR" ~ "Burmese",
+    contcod == "NAM" ~ "English",
+    contcod == "NPL" ~ "Nepali",
+    contcod == "NLD" ~ "Dutch",
+    contcod == "NIC" ~ "Spanish",
+    contcod == "NER" ~ "French",
+    contcod == "NGA" ~ "English",
+    contcod == "NOR" ~ "Norwegian",
+    contcod == "PAK" ~ "Urdu",
+    contcod == "PSE" ~ "Standard Arabic",
+    contcod == "PAN" ~ "Spanish",
+    contcod == "PNG" ~ "English",
+    contcod == "PRY" ~ "Spanish",
+    contcod == "PER" ~ "Spanish",
+    contcod == "PHL" ~ "Filipino",
+    contcod == "POL" ~ "Polish",
+    contcod == "PRT" ~ "Portuguese",
+    contcod == "ROM" ~ "Romanian",
+    contcod == "RUS" ~ "Russian",
+    contcod == "RWA" ~ "Kinyarwanda",
+    contcod == "STP" ~ "Portuguese",
+    contcod == "SEN" ~ "French",
+    contcod == "SRB" ~ "Serbian",
+    contcod == "SLE" ~ "English",
+    contcod == "SGP" ~ "English",
+    contcod == "SVK" ~ "Slovak",
+    contcod == "SVN" ~ "Slovene",
+    contcod == "ZAF" ~ "English",
+    contcod == "KOR" ~ "Korean",
+    contcod == "ESP" ~ "Spanish",
+    contcod == "LKA" ~ "Sinhala",
+    contcod == "SDN" ~ "Standard Arabic",
+    contcod == "SWZ" ~ "English",
+    contcod == "SWE" ~ "Swedish",
+    contcod == "CHE" ~ "German",
+    contcod == "SYR" ~ "Standard Arabic",
+    contcod == "TWN" ~ "Chinese",
+    contcod == "TJK" ~ "Tajik",
+    contcod == "TZA" ~ "Swahili",
+    contcod == "THA" ~ "Thai",
+    contcod == "TLS" ~ "Portuguese",
+    contcod == "TGO" ~ "French",
+    contcod == "TTO" ~ "English",
+    contcod == "TUN" ~ "Standard Arabic",
+    contcod == "TUR" ~ "Turkish",
+    contcod == "TKM" ~ "Turkmen",
+    contcod == "UGA" ~ "English",
+    contcod == "UKR" ~ "Ukrainian",
+    contcod == "GBR" ~ "English",
+    contcod == "USA" ~ "English",
+    contcod == "URY" ~ "Spanish",
+    contcod == "UZB" ~ "Uzbek",
+    contcod == "VEN" ~ "Spanish",
+    contcod == "VNM" ~ "Vietnamese",
+    contcod == "YEM" ~ "Standard Arabic",
+    contcod == "ZMB" ~ "English",
+    contcod == "ZWE" ~ "English",
+    contcod == "ARE" ~ "Standard Arabic",
+    contcod == "AFG" ~ "Dari",
+    contcod == "ATG" ~ "English",
+    contcod == "AND" ~ "Catalan",
+    contcod == "BHS" ~ "English",
+    contcod == "BHR" ~ "Standard Arabic",
+    contcod == "BRB" ~ "English",
+    contcod == "BLZ" ~ "English",
+    contcod == "BMU" ~ "English",
+    contcod == "BRN" ~ "Standard Malay",
+    contcod == "CYP" ~ "Greek",
+    contcod == "DMA" ~ "English",
+    contcod == "ERI" ~ "Tigrinya",
+    contcod == "GRD" ~ "English",
+    contcod == "GNQ" ~ "Spanish",
+    contcod == "ISM" ~ "English",
+    contcod == "KWT" ~ "Standard Arabic",
+    contcod == "LIE" ~ "German",
+    contcod == "MAC" ~ "Chinese",
+    contcod == "MCO" ~ "French",
+    contcod == "OMN" ~ "Standard Arabic",
+    contcod == "PLW" ~ "Palauan",
+    contcod == "QAT" ~ "Standard Arabic",
+    contcod == "KNA" ~ "English",
+    contcod == "LCA" ~ "English",
+    contcod == "VCT" ~ "English",
+    contcod == "WSM" ~ "Samoan",
+    contcod == "SMR" ~ "Italian",
+    contcod == "SAU" ~ "Standard Arabic",
+    contcod == "SYC" ~ "English",
+    contcod == "SOM" ~ "Somali",
+    contcod == "SSD" ~ "English",
+    contcod == "TON" ~ "Tongan",
+    contcod == "VUT" ~ "Bislama",
+    contcod == "VAT" ~ "Italian",
+    contcod == "KOS" ~ "Albanian",
+    TRUE ~ "Other"))
+
+```
+
+
+## 3.2. Linguistic Distance Index from PT-BR
+```{r echo=TRUE}
+
+# I. Load ASJP linguistic data
+langs <- read_csv("Auxiliary/languages.csv")
+forms <- read_csv("Auxiliary/forms.csv")
+params <- read_csv("Auxiliary/parameters.csv")  # the 40 ASJP concepts
+
+# II. Find Portuguese (using correct glottocode)
+ptbr_id <- langs %>% 
+  filter(str_detect(Glottocode, "port1283")) %>% pull(ID)
+
+if (length(ptbr_id) == 0) {
+  ptbr_id <- langs %>% 
+    filter(str_detect(Name, "Portuguese")) %>% slice(1) %>% pull(ID)
+}
+
+# III. Helper function: get wordlist for one language ID
+get_list <- function(lang_id) {
+  forms %>%
+    filter(Language_ID == lang_id) %>%
+    inner_join(params, by = c("Parameter_ID" = "ID")) %>%
+    group_by(Parameter_ID) %>%
+    slice(1) %>%  # one form per concept
+    ungroup() %>%
+    select(Parameter_ID, Concept = Name, Word = Form)
+}
+
+# IV. Get Portuguese wordlist
+pt <- get_list(ptbr_id)
+
+# V. Normalized Levenshtein distance function
+ldn <- function(x, y) {
+  mean(mapply(function(a,b){
+    if (is.na(a) || is.na(b)) return(NA_real_)
+    adist(a,b) / max(nchar(a), nchar(b))
+  }, x, y), na.rm = TRUE)
+}
+
+# VI. Create language name mapping from our names to ASJP database IDs
+create_language_mapping <- function() {
+  mapping <- tribble(
+    ~our_name, ~asjp_id,
+    "Standard Arabic", "STANDARD_ARABIC",
+    "Portuguese", "PORTUGUESE", 
+    "French", "FRENCH",
+    "English", "ENGLISH",
+    "Spanish", "SPANISH",
+    "German", "STANDARD_GERMAN",
+    "Italian", "ITALIAN",
+    "Russian", "RUSSIAN",
+    "Japanese", "JAPANESE",
+    "Chinese", "CANTONESE",  # Using Cantonese as fallback for Chinese
+    "Hindi", "HINDI",
+    "Bengali", "BENGALI",
+    "Standard Indonesian", "INDONESIAN",
+    "Standard Malay", "MELAYU",
+    "Korean", "KOREAN",
+    "Persian", "FARSI_WESTERN",
+    "Hebrew", "HEBREW_MODERN",
+    "Turkish", "TURKISH",
+    "Dutch", "DUTCH",
+    "Polish", "POLISH",
+    "Czech", "CZECH",
+    "Romanian", "ROMANIAN",
+    "Bulgarian", "BULGARIAN",
+    "Croatian Standard", "CROATIAN",
+    "Bosnian Standard", "BOSNIAN", 
+    "Serbian", "CROATIAN",  # Using Croatian as fallback for Serbian
+    "Hungarian", "HUNGARIAN",
+    "Finnish", "FINNISH",
+    "Swedish", "SWEDISH",
+    "Norwegian", "NORWEGIAN_BOKMAAL",
+    "Danish", "DANISH",
+    "Greek", "GREEK",
+    "Albanian", "ALBANIAN",
+    "Estonian", "ESTONIAN",
+    "Standard Latvian", "LATVIAN",
+    "Lithuanian", "LITHUANIAN",
+    "Ukrainian", "UKRAINIAN",
+    "Slovak", "SLOVAK",
+    "Slovene", "SLOVENIAN",
+    "Icelandic", "ICELANDIC",
+    "Vietnamese", "VIETNAMESE",
+    "Thai", "THAI",
+    "Catalan", "CATALAN",
+    "Amharic", "AMHARIC",
+    "Swahili", "SWAHILI",
+    "Malagasy", "SAKALAVA",
+    "Kinyarwanda", "KINYARWANDA",
+    "Somali", "SOMALI_2",
+    "Dari", "DARI",
+    "Azerbaijani", "AZERBAIJANI_NORTH",
+    "Khmer", "KHMER",
+    "Kazakh", "KAZAKH",
+    "Kirghiz", "KYRGYZ",
+    "Dhivehi", "DHIVEHI",
+    "Mongolian", "HALH",
+    "Lao", "LAO",
+    "Nepali", "NEPALI",
+    "Sinhala", "SINHALA",
+    "Urdu", "URDU",
+    "Tajik", "TAJIKI",
+    "Uzbek", "UZBEK",
+    "Turkmen", "TURKMEN",
+    "Armenian", "ARMENIAN_EASTERN",
+    "Georgian", "GEORGIAN",
+    "Belarusian", "BELARUSIAN",
+    "Macedonian", "MACEDONIAN",
+    "Montenegrin", "MONTENEGRIN",
+    "Luxembourgish", "LUXEMBURGEOIS",
+    "Maltese", "MALTESE",
+    "Malay", "MELAYU",
+    "Burmese", "BURMESE",
+    "Filipino", "TAGALOG",
+    "Dzongkha", "DZONGKHA",
+    "Tigrinya", "TIGRINYA",
+    "Palauan", "PALAUAN",
+    "Samoan", "SAMOAN",
+    "Tongan", "TONGAN",
+    "Bislama", "BISLAMA")
+  return(mapping)
+}
+
+# VII. Function to calculate distance from PT-BR to target language
+score_vs <- function(target_name_regex) {
+  
+  # Get language mapping
+  lang_mapping <- create_language_mapping()
+  
+  # Find ASJP ID for target language
+  asjp_id <- lang_mapping %>% 
+    filter(our_name == target_name_regex) %>% 
+    pull(asjp_id)
+  
+  if (length(asjp_id) == 0) {
+    print(paste("Language not in mapping:", target_name_regex))
+    return(tibble(target = target_name_regex, D = NA_real_, similarity = NA_real_, PPI = NA_real_))
+  }
+  
+  # Find language ID in ASJP database
+  tgt_id <- langs %>% filter(ID == asjp_id) %>% slice(1) %>% pull(ID)
+  
+  # If not found, try case-insensitive partial match on Name column
+  if (length(tgt_id) == 0) {
+    # Extract base language name for fuzzy matching
+    base_name <- gsub("_.*", "", asjp_id)
+    tgt_id <- langs %>% 
+      filter(str_detect(toupper(Name), toupper(base_name))) %>% 
+      slice(1) %>% 
+      pull(ID)
+  }
+  
+  if (length(tgt_id) == 0) {
+    print(paste("ASJP language not found:", asjp_id, "for", target_name_regex))
+    return(tibble(target = target_name_regex, D = NA_real_, similarity = NA_real_, PPI = NA_real_))
+  }
+  
+  # Get wordlist and calculate distance
+  tgt <- get_list(tgt_id)
+  both <- inner_join(pt, tgt, by = "Parameter_ID", suffix = c("_pt","_x"))
+  
+  if (nrow(both) == 0) {
+    print(paste("No word overlap for:", target_name_regex))
+    return(tibble(target = target_name_regex, D = NA_real_, similarity = NA_real_, PPI = NA_real_))
+  }
+  
+  D <- ldn(both$Word_pt, both$Word_x)
+  print(paste("Calculated distance for", target_name_regex, ":", round(100*(1-D), 2)))
+  tibble(target = target_name_regex, D = D, similarity = 1 - D, PPI = 100*(1-D))
+}
+
+# VIII. Get unique languages from BRA dataset
+BRA_languages <- unique(BRA$official_language)
+BRA_languages <- BRA_languages[!is.na(BRA_languages) & BRA_languages != "Other"]
+
+print(BRA_languages)
+
+# IX. Display sample of available languages in ASJP
+print(head(unique(langs$Name), 20))
+
+# X. Calculate distances for all languages in BRA dataset
+language_distances <- map_dfr(BRA_languages, score_vs) %>%
+  rename(official_language = target)
+
+print(language_distances)
+
+# XI. Add linguistic distance to BRA dataset
+BRA <- BRA %>%
+  left_join(language_distances, by = "official_language") %>%
+  dplyr::select(-c(similarity, PPI, official_language)) %>%
+  filter(D != is.na(D)) %>%
+  rename(language_distance = D,
+         expats = pop)
+
+# XII. Remove redundant data 
+rm(forms, langs, language_distances, params, pt)
+
+```
+
+
+## 3.3. Cultural Proximity Index (based on foreign migration waves to Brazil between 1884 and 1953)
+```{r echo=TRUE}
+
+# I. Load historical immigration data
+mig <- read.csv("Auxiliary/Brazil_Immigration_1884-1953.csv")
+
+# II. Calculate total immigration by country of origin
+mig <- mig %>%
+  summarise(Germany = sum(Germans),
+            Spain = sum(Spaniards),
+            Italy = sum(Italians),
+            Japan = sum(Japanese),
+            Portugal = sum(Portuguese),
+            Ukraine = sum(Russians),
+            Syria = sum(Syrians_Turks)/2,
+            Lebanon = sum(Syrians_Turks)/2,
+            Others = sum(Others),
+            Total = sum(Total)) %>%
+  pivot_longer(cols = everything(),
+               names_to = "country",
+               values_to = "values")
+
+# III. Extract total for normalization
+total <- mig %>%
+  filter(country == "Total") %>%
+  pull(values) %>%
+  as.numeric()
+
+# IV. Calculate cultural proximity index
+mig <- mig %>%
+  filter(country != "Total" & country != "Others") %>%
+  mutate(index = case_when(country == "Germany" ~ 405861/total,
+                           country == "Spain" ~ 606095/total,
+                           country == "Italy" ~ 1515387/total,
+                           country == "Japan" ~ 194221/total,
+                           country == "Portugal" ~ 1401317/total,
+                           country == "Ukraine" ~ 90079/total,
+                           country == "Syria" ~ 48953/total,
+                           country == "Lebanon" ~ 48953/total,
+                           TRUE ~ 585354/total)) %>%
+  rename(cont = country)
+
+# V. Add cultural proximity to BRA dataset
+BRA <- BRA %>%
+  left_join(mig, by = "cont") %>%
+  select(-values) %>%
+  replace_na(list(index = 0)) %>%
+  rename(cult_prox = index)
+
+rm(mig)
+
+```
+
+
+## 3.4. Geographical Distance from Brazil (by closest border/shoreline distance)
+```{r echo=TRUE}
+
+# I. Enable geodesic distances on the sphere
+sf_use_s2(TRUE)
+
+# II. Load world geometries
+world <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  st_make_valid()
+
+# III. Get Brazil geometry
+bra <- world %>%
+  filter(iso_a3 == "BRA") %>% st_union()
+
+# IV. Function to calculate distance to Brazil
+dist_to_brazil <- function(country_name_or_iso3) {
+  x <- world %>%
+    filter(admin == country_name_or_iso3 | name_long == country_name_or_iso3 | iso_a3 == country_name_or_iso3) %>%
+    st_union()
+  as.numeric(set_units(st_distance(x, bra), "km"))
+}
+
+# V. Get target countries
+targets <- c(unique(BRA$cont), "North Macedonia", "Democratic Republic of the Congo")
+
+# VI. Calculate distances
+dist <- tibble(cont = targets, 
+               geo_distance = sapply(targets, dist_to_brazil)) %>%
+  filter(!is.na(geo_distance)) %>%
+  mutate(cont = case_when(cont == "North Macedonia" ~ "Macedonia",
+                          cont == "Democratic Republic of the Congo" ~ "Dem. Rep. Congo",
+                          TRUE ~ cont))
+
+# VII. Add geographical distance to BRA dataset
+BRA <- BRA %>%
+  left_join(dist, by = "cont") %>%
+  filter(!is.na(geo_distance))
+
+rm(bra, dist, world)
+
+```
+
+
+## 3.5. Baseline mobility friction (based on entry visa requirement)
+```{r echo=TRUE, warning=FALSE}
+
+# I. Define years of interest
+seq <- seq(1973, 2008)
+
+# II. Convert to character for column selection
+ycols <- as.character(seq)
+
+# III. Load and process visa data
+visa <- read_excel(path = "Auxiliary/DEMIG_VISA_Database_version_1.4.xlsx") %>%
+  rename(cont = `Country of visa issuance`,
+         bra_cont = `Nationality of traveller`,
+         contcod = `UN 3-digit code...3`,
+         policy = `Policy measure`) %>%
+  select(c(cont, contcod, bra_cont, policy, all_of(as.character(seq)))) %>%
+  filter(bra_cont == "Brazil" & policy == "Visa") %>%
+  mutate(visa = rowMeans(across(all_of(ycols)), na.rm = TRUE)) %>%
+  select(c(contcod, visa))
+
+# IV. Add visa requirement to BRA dataset
+BRA <- BRA %>%
+  left_join(visa, by = "contcod") %>%
+  filter(!cont %in% c("South Sudan", "Vanuatu"))
+
+rm(visa)
+
+```
+
+
+## 3.6. General policy restrictiveness at destination (0 = liberal, 1 = restrictive)
+```{r echo=TRUE}
+
+# I. Load IMPIC policy data
+policy <- read_dta("Auxiliary/IMPICDatasetV2_1980-2018.dta")
+
+# II. Get column names for labor and family policies
+cols_a <- grep("^AvgS_a", names(policy), value = TRUE)
+
+cols_b <- grep("^AvgS_b", names(policy), value = TRUE)
+
+# III. Process policy data
+policy <- policy %>%
+  filter(year <= 2008 & year >= 2005) %>%
+  mutate(cntry = countrycode(cntry, "iso2c", "iso3c", warn = FALSE)) %>%
+  filter(!is.na(cntry)) %>%
+  rename(contcod = cntry) %>%
+  rowwise() %>%
+  mutate(policy_labour = mean(c_across(all_of(cols_a)), na.rm = TRUE),
+         policy_family = mean(c_across(all_of(cols_b)), na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(mig_policy = (policy_labour + policy_family) / 2) %>%
+  select(c(contcod, year, mig_policy)) %>%
+  group_by(contcod) %>%
+  summarise(mig_policy = mean(mig_policy, na.rm = TRUE)) %>%
+  filter(mig_policy != "NaN")
+
+# IV. Add migration policy to BRA dataset
+BRA <- BRA %>%
+  left_join(policy, by = "contcod") %>%
+  mutate(mig_policy = case_when(is.na(mig_policy) == TRUE ~ 0.5*visa,
+                                TRUE ~ mig_policy))
+
+rm(country_mapping, policy)
+
+```
+
+
+## 3.7. Network effects (bigger Brazilian diaspora in country j lowers costs such as info, housing, job search, etc)
+```{r echo=TRUE}
+
+# I. Retrieve data
+raw <- read_excel(path = "Auxiliary/undesa_pd_2024_ims_stock_by_sex_destination_and_origin.xlsx", 
+                  sheet = "Table 1")
+
+# II. Keep rows where origin == Brazil
+bra <- raw %>%
+  filter(`Region, development group, country or area of origin` == "Brazil") %>%
+  transmute(dest_m49 = `Location code of destination`,
+            destination = `Region, development group, country or area of destination`,
+            br_born_2000 = `International migrant stock (2000)`)
+
+# III. Keep countries only (drop World/regions) and drop Brazil itself
+# In UN M49, country codes are < 900; region aggregates are >= 900.
+bra_countries <- bra %>%
+  filter(dest_m49 < 900, dest_m49 != 76) %>%   # 76 = Brazil (M49)
+  mutate(destination = str_trim(str_remove_all(destination, "\\*")))
+
+# IV. Build the network variables
+scale01 <- function(x) (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+
+network <- bra_countries %>%
+  mutate(br_log_2000 = log1p(br_born_2000), # Log transform to tame very large values
+         network_z = scale01(br_log_2000), # Standardized log stock (network index)
+         contcod = countrycode(destination, "country.name", "iso3c", warn = FALSE)) %>%
+  filter(!is.na(contcod)) %>%
+  select(-c(dest_m49, destination)) %>%
+  relocate(contcod, .before = "br_born_2000")
+
+# V. Add network effects to BRA dataset
+BRA <- BRA %>%
+  left_join(network, by = "contcod") %>%
+  select(-c(br_born_2000, network_z)) %>%
+  mutate(br_log_2000 = case_when(is.na(br_log_2000) ~ 0,
+                               TRUE ~ br_log_2000)) %>%
+  rename(ln_diaspora = br_log_2000)
+
+rm(bra, bra_countries, network, raw)
+
+```
+
+
+## 3.8. Political instability (as the number of coups/attempts between 1998 and 2008)
+```{r echo=TRUE}
+
+# I. Load coup data
+coup <- read.csv(file = "Auxiliary/Coup_data_2.2.0.csv") %>%
+  filter(year >= 1998 & year <= 2008) %>%
+  mutate(contcod = countrycode(country, "country.name", "iso3c", warn = FALSE)) %>%
+  select(c(contcod, year, event_type)) %>%
+  relocate(contcod, .before = year) %>%
+  group_by(contcod) %>%
+  summarise(n_coups = n()) # Number of coups, attempted coups, and conspiracies
+
+# II. Add political instability to BRA dataset
+BRA <- BRA %>%
+  left_join(coup, by = "contcod") %>%
+  mutate(n_coups = case_when(is.na(n_coups) ~ 0,
+                             TRUE ~ n_coups))
+
+rm(coup)
+
+```
+
+
+## 3.9. Gravity model (Poisson Pseudo Maximum Likelihood - PPML)
+```{r echo=TRUE}
+
+# I. Load income and inequality data
+WYD <- read_excel(path = "Datasets/WYD_reg.xlsx") %>%
+  group_by(contcod) %>%
+  summarise(lninc = weighted.mean(lninc, w = pop, na.rm = TRUE),
+            gini = dplyr::first(gini[!is.na(gini)]),
+            pop = mean(pop))
+
+# II. Prepare final dataset for gravity model
+gravity_df <- BRA %>%
+  left_join(WYD, by = "contcod") %>%
+  filter(!is.na(lninc)) %>%
+  mutate(ln_dist = log(geo_distance),
+         ln_inc = as.numeric(lninc)) %>%
+  rename(cult_dist = cult_prox,
+         language_dist = language_distance,
+         geo_dist = geo_distance) %>%
+  select(-lninc)
+
+save(gravity_df,
+     file = "Datasets/gravity_df.RData")
+
+load("Datasets/gravity_df.RData")
+
+# III. Estimate gravity model with Poisson Pseudo Maximum Likelihood
+gravity_model <- fepois(data = gravity_df,
+                        expats ~ ln_dist + ln_inc + language_dist + cult_dist + gini + visa + mig_policy + ln_diaspora + n_coups,
+                        offset = log(gravity_df$pop),
+                        vcov = "hetero",
+                        fixef = "reg")
+
+# IV. Display model results
+summary(gravity_model)
+
+```

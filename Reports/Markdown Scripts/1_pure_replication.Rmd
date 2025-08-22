@@ -1,0 +1,476 @@
+---
+title: "1_pure_replication"
+author: "Lucas Salamuni - 7429674"
+date: "2025-08-21"
+output: pdf_document
+---
+
+# Packages
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# I. Load required packages
+packages <- c("dplyr", "knitr", "tinytex", "readxl", "tidyr", "fastDummies",
+              "sandwich", "lmtest", "estimatr", "purrr", "tibble", "writexl", 
+              "readr", "stringr", "sf", "rnaturalearth", "dplyr", "units",
+              "igraph", "countrycode", "geosphere", "haven", "glmnet", 
+              "gravity", "modelsummary", "sessioninfo")
+
+# II. Install packages if not already installed
+if(sum(as.numeric(!packages %in% installed.packages())) != 0){ 
+  instalador <- packages[!packages %in% installed.packages()] 
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(packages, require, character = T)
+} else {
+  sapply(packages, require, character = T)
+}
+
+```
+
+---
+
+## Session info
+```{r echo=TRUE}
+
+session_info()
+
+```
+
+---
+
+# **Part 1. Pure Replication** 
+
+## 1.1. Retrieve original data
+```{r echo=TRUE}
+
+# I. Load the original RData file
+load("Datasets/final08_1.RData")
+
+# II. Convert to tibble for easier manipulation
+df <- x %>%
+  as_tibble()
+
+# III. Remove original object from memory
+rm(x)
+
+# IV. Sort data by country code and group
+data <- df %>% 
+  arrange(contcod, group)
+
+# V. Display summary statistics
+summary(df)
+
+# VI. Show first few rows
+head(df, 10)
+
+```
+
+
+## 1.2. Original STATA script
+```{stata, echo=TRUE, eval=FALSE}
+
+set logtype text
+log using c:\branko\interyd\where\sent_to_Restat\for_release\Restat_results.txt, replace
+
+/* Table 1: key results */
+/* use final08.dta */
+
+sort contcod group
+tab  contcod, gen(Dcont)
+
+regress lninc lngdpppp gini if  maxgroup==100
+regress lninc ayos gini if  maxgroup==100
+regress	lninc Dcont1-Dcont117 gini if maxgroup==100
+
+
+regress lninc lngdpppp gini if  maxgroup==100 [w=pop]
+regress	lninc Dcont1-Dcont117 gini if maxgroup==100 [w=pop]
+regress	lninc Dcont1-Dcont117 gini if maxgroup==100 [w=pop]
+
+
+/* Table 4 and Annex Table 1: trade-off between income level and inequality, at different points of income distribution */
+
+/* creation of ventiles out of percentiles and running of regressions for "where are you?" */
+/* use final08.dta */
+
+
+sort contcod group
+
+gen ventile=.
+replace ventile=1 if group<6
+replace ventile=2 if group>5 & group<11
+replace ventile=3 if group>10 & group<16
+replace ventile=4 if group>15 & group<21
+replace ventile=5 if group>20 & group<26
+replace ventile=6 if group>25 & group<31
+replace ventile=7 if group>30 & group<36
+replace ventile=8 if group>35 & group<41
+replace ventile=9 if group>40 & group<46
+replace ventile=10 if group>45 & group<51
+replace ventile=11 if group>50 & group<56
+replace ventile=12 if group>55 & group<61
+replace ventile=13 if group>60 & group<66
+replace ventile=14 if group>65 & group<71
+replace ventile=15 if group>70 & group<76
+replace ventile=16 if group>75 & group<81
+replace ventile=17 if group>80 & group<86
+replace ventile=18 if group>85 & group<91
+replace ventile=19 if group>90 & group<95
+replace ventile=20 if group>95 
+
+replace ventile=. if maxgroup~=100
+
+
+by contcod: egen bb1=sum(inc) if ventile==1
+by contcod: egen bb2=sum(inc) if ventile==2
+by contcod: egen bb3=sum(inc) if ventile==3
+by contcod: egen bb4=sum(inc) if ventile==4
+by contcod: egen bb5=sum(inc) if ventile==5
+by contcod: egen bb6=sum(inc) if ventile==6
+by contcod: egen bb7=sum(inc) if ventile==7
+by contcod: egen bb8=sum(inc) if ventile==8
+by contcod: egen bb9=sum(inc) if ventile==9
+by contcod: egen bb10=sum(inc) if ventile==10
+by contcod: egen bb11=sum(inc) if ventile==11
+by contcod: egen bb12=sum(inc) if ventile==12
+by contcod: egen bb13=sum(inc) if ventile==13
+by contcod: egen bb14=sum(inc) if ventile==14
+by contcod: egen bb15=sum(inc) if ventile==15
+by contcod: egen bb16=sum(inc) if ventile==16
+by contcod: egen bb17=sum(inc) if ventile==17
+by contcod: egen bb18=sum(inc) if ventile==18
+by contcod: egen bb19=sum(inc) if ventile==19
+by contcod: egen bb20=sum(inc) if ventile==20
+
+
+
+for num 1/20: replace bbX=bbX/5
+
+for num 1/20: gen lnbbX=ln(bbX)
+gen gini2=gini*100
+
+regress lnbb1 lngdpppp gini2 if group==1 & maxgroup==100, cluster(contcod)
+regress lnbb2 lngdpppp gini2 if group==6 & maxgroup==100, cluster(contcod)
+regress lnbb3 lngdpppp gini2 if group==11 & maxgroup==100, cluster(contcod)
+regress lnbb4 lngdpppp gini2 if group==16 & maxgroup==100, cluster(contcod)
+regress lnbb5 lngdpppp gini2 if group==21 & maxgroup==100, cluster(contcod)
+regress lnbb6 lngdpppp gini2 if group==26 & maxgroup==100, cluster(contcod)
+regress lnbb7 lngdpppp gini2 if group==31 & maxgroup==100, cluster(contcod)
+regress lnbb8 lngdpppp gini2 if group==36 & maxgroup==100, cluster(contcod)
+regress lnbb9 lngdpppp gini2 if group==41 & maxgroup==100, cluster(contcod)
+regress lnbb10 lngdpppp gini2 if group==46 & maxgroup==100, cluster(contcod)
+regress lnbb11 lngdpppp gini2 if group==51 & maxgroup==100, cluster(contcod)
+regress lnbb12 lngdpppp gini2 if group==56 & maxgroup==100, cluster(contcod)
+regress lnbb13 lngdpppp gini2 if group==61 & maxgroup==100, cluster(contcod)
+regress lnbb14 lngdpppp gini2 if group==66 & maxgroup==100, cluster(contcod)
+regress lnbb15 lngdpppp gini2 if group==71 & maxgroup==100, cluster(contcod)
+regress lnbb16 lngdpppp gini2 if group==76 & maxgroup==100, cluster(contcod)
+regress lnbb17 lngdpppp gini2 if group==81 & maxgroup==100, cluster(contcod)
+regress lnbb18 lngdpppp gini2 if group==86 & maxgroup==100, cluster(contcod)
+regress lnbb19 lngdpppp gini2 if group==91 & maxgroup==100, cluster(contcod)
+regress lnbb20 lngdpppp gini2 if group==96 & maxgroup==100, cluster(contcod)
+
+
+regress lnbb1 lngdpppp gini2 if group==1 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb2 lngdpppp gini2 if group==6 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb3 lngdpppp gini2 if group==11 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb4 lngdpppp gini2 if group==16 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb5 lngdpppp gini2 if group==21 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb6 lngdpppp gini2 if group==26 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb7 lngdpppp gini2 if group==31 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb8 lngdpppp gini2 if group==36 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb9 lngdpppp gini2 if group==41 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb10 lngdpppp gini2 if group==46 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb11 lngdpppp gini2 if group==51 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb12 lngdpppp gini2 if group==56 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb13 lngdpppp gini2 if group==61 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb14 lngdpppp gini2 if group==66 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb15 lngdpppp gini2 if group==71 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb16 lngdpppp gini2 if group==76 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb17 lngdpppp gini2 if group==81 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb18 lngdpppp gini2 if group==86 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb19 lngdpppp gini2 if group==91 & maxgroup==100 [w=pop], cluster(contcod)
+regress lnbb20 lngdpppp gini2 if group==96 & maxgroup==100 [w=pop], cluster(contcod)
+
+
+
+log close
+
+```
+
+
+## 1.3. Table 1: Key Results
+```{r echo=TRUE}
+
+# I. Create country dummy variables (equivalent to tab contcod, gen(Dcont))
+data_with_dummies <- df %>%
+  dummy_cols(select_columns = "contcod", 
+             remove_first_dummy = FALSE,
+             remove_most_frequent_dummy = FALSE)
+
+# II. Filter for complete cases (maxgroup == 100)
+complete_data <- data_with_dummies %>%
+  filter(maxgroup == 100)
+
+```
+
+
+## 1.4. Unweighted Regressions (Table 2)
+```{r echo=TRUE}
+
+# I. Regression 1: lninc ~ lngdpppp + gini
+reg1 <- lm(data = complete_data,
+              lninc ~ lngdpppp + gini)
+
+# II. Display regression summary
+summary(reg1)
+
+# III. Calculate clustered standard errors (by country)
+coeftest(reg1, vcov = vcovCL(reg1, cluster = ~ contcod))
+
+
+# IV. Regression 2: lninc ~ ayos + gini  
+reg2 <- lm(data = complete_data, 
+           lninc ~ ayos + gini)
+
+# V. Display regression summary
+summary(reg2)
+
+# VI. Calculate clustered standard errors (by country)
+coeftest(reg2, vcov = vcovCL(reg2, cluster = ~ contcod))
+
+
+# VII. Regression 3: lninc ~ country dummies + gini
+# Get all country dummy column names
+country_dummies <- names(complete_data)[grepl("^contcod_", names(complete_data))]
+
+# VIII. Create formula with all country dummies
+formula_str <- paste("lninc ~ ", paste(country_dummies, collapse = " + "))
+
+# IX. Run regression with country fixed effects
+reg3 <- lm(data = complete_data,
+           as.formula(formula_str))
+
+# X. Calculate clustered standard errors (by country)
+coeftest(reg3, vcov = vcovCL(reg3, cluster = ~ contcod))
+
+# XI. Display regression summary
+summary(reg3)
+
+```
+
+
+## 1.5. Creating Ventiles from Percentiles
+```{r echo=TRUE}
+
+# I. Create ventiles (equivalent to Stata's ventile creation)
+data_ventiles <- complete_data %>%
+  mutate(ventile = case_when(
+    group < 6 ~ 1,
+    group >= 6 & group < 11 ~ 2,
+    group >= 11 & group < 16 ~ 3,
+    group >= 16 & group < 21 ~ 4,
+    group >= 21 & group < 26 ~ 5,
+    group >= 26 & group < 31 ~ 6,
+    group >= 31 & group < 36 ~ 7,
+    group >= 36 & group < 41 ~ 8,
+    group >= 41 & group < 46 ~ 9,
+    group >= 46 & group < 51 ~ 10,
+    group >= 51 & group < 56 ~ 11,
+    group >= 56 & group < 61 ~ 12,
+    group >= 61 & group < 66 ~ 13,
+    group >= 66 & group < 71 ~ 14,
+    group >= 71 & group < 76 ~ 15,
+    group >= 76 & group < 81 ~ 16,
+    group >= 81 & group < 86 ~ 17,
+    group >= 86 & group < 91 ~ 18,
+    group >= 91 & group < 95 ~ 19,
+    group >= 95 ~ 20,
+    TRUE ~ NA_real_))
+
+# II. Check ventile distribution
+table(data_ventiles$ventile, useNA = "always")
+
+```
+
+
+## 1.6. Calculate Average Income by Ventile within Country
+```{r echo=TRUE}
+
+# I. Create all bb variables as NA
+for(i in 1:20) {
+  data_ventiles[[paste0("bb", i)]] <- NA_real_
+}
+
+# II. Calculate sum of income for each ventile within each country
+for(i in 1:20) {
+  ventile_sums <- data_ventiles %>%
+    filter(ventile == i) %>%
+    group_by(contcod) %>%
+    summarise(sum_inc = sum(inc, na.rm = TRUE), .groups = "drop")
+  
+  # III. Assign the sum to all observations in that ventile for each country
+  for(j in 1:nrow(ventile_sums)) {
+    country <- ventile_sums$contcod[j]
+    sum_val <- ventile_sums$sum_inc[j]
+    
+    data_ventiles[data_ventiles$contcod == country & 
+                  data_ventiles$ventile == i & 
+                  !is.na(data_ventiles$ventile), paste0("bb", i)] <- sum_val
+  }
+}
+
+# IV. Divide by 5 to get average (equivalent to Stata's for num 1/20: replace bbX=bbX/5)
+for(i in 1:20) {
+  data_ventiles[[paste0("bb", i)]] <- data_ventiles[[paste0("bb", i)]] / 5
+}
+
+# V. Take log of average income (equivalent to Stata's for num 1/20: gen lnbbX=ln(bbX))
+for(i in 1:20) {
+  data_ventiles[[paste0("lnbb", i)]] <- log(data_ventiles[[paste0("bb", i)]])
+}
+
+# VI. Create gini2 (gini * 100)
+data_ventiles <- data_ventiles %>%
+  mutate(gini2 = gini * 100)
+
+# Note: We no longer need separate ventile datasets since we're using the original data
+# with the specific group filters in the regression functions
+
+```
+
+
+## 1.7. Ventile Regressions - Unweighted with Clustered Standard Errors
+```{r echo=TRUE}
+
+# I. Function to run regression for each ventile
+run_ventile_regression <- function(ventile_num) {
+  
+  # II. Define specific group for each ventile
+  ventile_groups <- c(1, 6, 11, 16, 
+                      21, 26, 31, 36, 
+                      41, 46, 51, 56, 
+                      61, 66, 71, 76,
+                      81, 86, 91, 96)
+  
+  # III. Filter data for specific ventile group
+  reg_data <- data_ventiles %>%
+    filter(group == ventile_groups[ventile_num] & maxgroup == 100)
+  
+  # IV. Run regression with clustered standard errors
+  reg <- lm_robust(data = reg_data,
+                   formula = as.formula(paste0("lnbb", ventile_num, " ~ lngdpppp + gini2")),
+                   clusters = contcod)
+  
+  return(reg)
+}
+
+# V. Run regressions for all 20 ventiles (unweighted)
+ventile_regs_unweighted <- map(1:20, run_ventile_regression)
+
+# VI. Name the regression results
+names(ventile_regs_unweighted) <- paste0("ventile_", 1:20, "_reg")
+
+# VII. Display results for first few ventiles
+map(ventile_regs_unweighted[1:3], summary)
+
+```
+
+
+## 1.8. Ventile Regressions - Population-Weighted with Clustered Standard Errors
+```{r echo=TRUE}
+
+# I. Function to run weighted regression for each ventile
+run_ventile_regression_weighted <- function(ventile_num) {
+  
+  # II. Define specific group for each ventile
+  ventile_groups <- c(1, 6, 11, 16, 
+                      21, 26, 31, 36, 
+                      41, 46, 51, 56, 
+                      61, 66, 71, 76, 
+                      81, 86, 91, 96)
+  
+  # III. Filter data for specific ventile group
+  reg_data <- data_ventiles %>%
+    filter(group == ventile_groups[ventile_num] & maxgroup == 100)
+  
+  # IV. Run weighted regression with clustered standard errors
+  reg <- lm_robust(data = reg_data,
+                   formula = as.formula(paste0("lnbb", ventile_num, " ~ lngdpppp + gini2")),
+                   weights = pop,
+                   clusters = contcod)
+  
+  return(reg)
+}
+
+# V. Run weighted regressions for all 20 ventiles
+ventile_regs_weighted <- map(1:20, run_ventile_regression_weighted)
+
+# VI. Name the regression results
+names(ventile_regs_weighted) <- paste0("ventile_", 1:20, "_reg_weighted")
+
+# VII. Display results for first few ventiles
+map(ventile_regs_weighted[1:3], summary)
+
+```
+
+
+## 1.9. Extract and Display Key Results (Table 4 + Table Appendix)
+```{r echo=TRUE}
+
+# I. Function to extract key statistics from regression results
+extract_reg_stats <- function(reg_list, reg_names) {
+  map_dfr(seq_along(reg_list), ~{
+    reg <- reg_list[[.x]]
+    tibble(regression = reg_names[.x],
+           gdp_coef = reg$coefficients["lngdpppp"],
+           gdp_se = reg$std.error["lngdpppp"],
+           gdp_pvalue = reg$p.value["lngdpppp"],
+           gini_coef = reg$coefficients["gini2"],
+           gini_se = reg$std.error["gini2"],
+           gini_pvalue = reg$p.value["gini2"],
+           r_squared = reg$r.squared,
+           adj_r_squared = reg$adj.r.squared,
+           n_obs = reg$nobs)
+  })
+}
+
+# II. Extract results for all ventile regressions
+results_unweighted <- extract_reg_stats(ventile_regs_unweighted, 
+                                        paste0("Ventile ", 1:20, " (Unweighted)"))
+
+results_weighted <- extract_reg_stats(ventile_regs_weighted, 
+                                      paste0("Ventile ", 1:20, " (Weighted)"))
+
+# III. Display unweighted results
+print(results_unweighted)
+
+# IV. Display weighted results
+print(results_weighted)
+
+```
+
+
+## 1.10. Create Summary Table
+```{r echo=TRUE}
+
+# I. Combine results for comparison
+combined_results <- bind_rows(results_unweighted %>% 
+                                mutate(weighting = "Unweighted"),
+                              results_weighted %>% 
+                                mutate(weighting = "Weighted")) %>%
+  mutate(ventile = rep(1:20, 2)) %>%
+  select(ventile, weighting, gdp_coef, gdp_se, gini_coef, gini_se, r_squared, n_obs)
+
+# II. Display formatted table
+formatted_table <- combined_results %>%
+  mutate(gdp_result = paste0(round(gdp_coef, 3), " (", round(gdp_se, 3), ")"),
+         gini_result = paste0(round(gini_coef, 4), " (", round(gini_se, 4), ")")) %>%
+  select(ventile, weighting, gdp_result, gini_result, r_squared, n_obs) %>%
+  arrange(ventile, weighting)
+
+# III. Display the formatted table
+print(formatted_table)
+
+```
