@@ -1,0 +1,306 @@
+#---
+#title: "2_cross-continent_analysis"
+#author: "Lucas Salamuni - 7429674"
+#date: "2025-08-21"
+#output: pdf_document
+#---
+
+# Packages
+
+
+# I. Load required packages
+packages <- c("dplyr", "knitr", "tinytex", "readxl", "tidyr", "fastDummies",
+              "sandwich", "lmtest", "estimatr", "purrr", "tibble", "writexl", 
+              "readr", "stringr", "sf", "rnaturalearth", "dplyr", "units",
+              "igraph", "countrycode", "geosphere", "haven", "glmnet", 
+              "gravity", "modelsummary", "sessioninfo")
+
+# II. Install packages if not already installed
+if(sum(as.numeric(!packages %in% installed.packages())) != 0){ 
+  instalador <- packages[!packages %in% installed.packages()] 
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(packages, require, character = T)
+} else {
+  sapply(packages, require, character = T)
+}
+
+
+
+
+
+## Session info
+
+
+session_info()
+
+
+
+
+
+# **Part 2. Cross-continent Analysis**
+#This part of the script adds country names and regions to the WYD dataset.
+
+
+## 2.1. Load data (just a backup, making it possible to run the script from this poin on without running everything else before)
+
+
+# I. Load the original RData file
+load("Datasets/final08_1.RData")
+
+# II. Convert to tibble for easier manipulation
+df <- x %>%
+  as_tibble()
+
+# III. Remove original object from memory
+rm(x)
+
+# IV. Sort data by country code and group
+data <- df %>% 
+  arrange(contcod, group)
+
+# V. Display summary statistics
+summary(df)
+
+# VI. Show first few rows
+head(df, 10)
+
+
+
+
+## 2.2. Check unique country codes
+
+
+# I. Get unique country codes
+unique_codes <- unique(df$contcod)
+print(paste("Number of unique country codes:", length(unique_codes)))
+
+# II. Display all unique codes
+print(sort(unique_codes))
+
+
+
+
+## 2.3. Create country mapping
+
+
+# I. Create comprehensive country mapping based on ISO codes
+# Note: Handling special cases:
+# - ROM = Romania (instead of ROU)
+# - KOS = Kosovo 
+# - WBG will be renamed to PSE = Palestine
+# - ZAR will be renamed to COD = Dem. Rep. Congo
+
+country_mapping <- tibble(contcod = c("ALB", "DZA", "AGO", "ARG", "ARM", "AUS", "AUT", "AZE", "BGD", "BLR",
+                                      "BEL", "BEN", "BTN", "BOL", "BIH", "BWA", "BRA", "BGR", "BFA", "BDI",
+                                      "KHM", "CMR", "CAN", "CPV", "CAF", "TCD", "CHL", "CHN", "COL", "COM",
+                                      "COG", "CRI", "CIV", "HRV", "CZE", "COD", "DNK", "DJI", "DOM", "ECU",
+                                      "EGY", "SLV", "EST", "ETH", "FJI", "FIN", "FRA", "GAB", "GMB", "GEO",
+                                      "DEU", "GHA", "GRC", "GTM", "GIN", "GNB", "GUY", "HTI", "HND", "HKG",
+                                      "HUN", "ISL", "IND", "IDN", "IRN", "IRQ", "IRL", "ISR", "ITA", "JAM",
+                                      "JPN", "JOR", "KAZ", "KEN", "KGZ", "LAO", "LVA", "LBN", "LSO", "LBR",
+                                      "LTU", "LUX", "MKD", "MDG", "MWI", "MYS", "MDV", "MLI", "MLT", "MRT",
+                                      "MUS", "MEX", "MDA", "MNG", "MNE", "MAR", "MOZ", "MMR", "NAM", "NPL",
+                                      "NLD", "NIC", "NER", "NGA", "NOR", "PAK", "PSE", "PAN", "PNG", "PRY",
+                                      "PER", "PHL", "POL", "PRT", "ROM", "RUS", "RWA", "STP", "SEN", "SRB",
+                                      "SLE", "SGP", "SVK", "SVN", "ZAF", "KOR", "ESP", "LKA", "SDN", "SWZ",
+                                      "SWE", "CHE", "SYR", "TWN", "TJK", "TZA", "THA", "TLS", "TGO", "TTO",
+                                      "TUN", "TUR", "TKM", "UGA", "UKR", "GBR", "USA", "URY", "UZB", "VEN",
+                                      "VNM", "YEM", "ZMB", "ZWE", "ARE", "AFG", "ATG", "AND", "BHS", "BHR", 
+                                      "BRB", "BLZ", "BMU", "BRN", "CYP", "DMA", "ERI", "GRD", "GNQ", "ISM", 
+                                      "KWT", "LIE", "MAC", "MCO", "OMN", "PLW", "QAT", "KNA", "LCA", "VCT",
+                                      "WSM", "SMR", "SAU", "SYC", "SOM", "SSD", "TON", "VUT", "VAT", "KOS"),
+  cont = c("Albania", "Algeria", "Angola", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bangladesh", "Belarus",
+           "Belgium", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Bulgaria", "Burkina Faso", "Burundi",
+           "Cambodia", "Cameroon", "Canada", "Cape Verde", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros",
+           "Congo", "Costa Rica", "Côte d'Ivoire", "Croatia", "Czech Republic", "Dem. Rep. Congo", "Denmark", "Djibouti", "Dominican Republic",
+           "Ecuador", "Egypt", "El Salvador", "Estonia", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia",
+           "Germany", "Ghana", "Greece", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hong Kong",
+           "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica",
+           "Japan", "Jordan", "Kazakhstan", "Kenya", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia",
+           "Lithuania", "Luxembourg", "Macedonia", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritania",
+           "Mauritius", "Mexico", "Moldova", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nepal",
+           "Netherlands", "Nicaragua", "Niger", "Nigeria", "Norway", "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay",
+           "Peru", "Philippines", "Poland", "Portugal", "Romania", "Russia", "Rwanda", "São Tomé and Príncipe", "Senegal", "Serbia",
+           "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain", "Sri Lanka", "Sudan", "Swaziland",
+           "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Trinidad and Tobago",
+           "Tunisia", "Turkey", "Turkmenistan", "Uganda", "Ukraine", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Venezuela",
+           "Vietnam", "Yemen", "Zambia", "Zimbabwe", "United Arab Emirates", "Afghanistan", "Antigua and Barbuda", "Andorra", "Bahamas", "Bahrain", 
+           "Barbados", "Belize", "Bermuda", "Brunei", "Cyprus", "Dominica", "Eritrea", "Grenada", "Equatorial Guinea", "Isle of Man", "Kuwait",
+           "Liechtenstein", "Macao", "Monaco", "Oman", "Palau", "Qatar", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines",
+           "Samoa", "San Marino", "Saudi Arabia", "Seychelles", "Somalia", "South Sudan", "Tonga", "Vanuatu", "Vatican City", "Kosovo"),
+  reg = c("Europe", "Africa", "Africa", "South America", "Asia", "Oceania", "Europe", "Asia", "Asia", "Europe",
+          "Europe", "Africa", "Asia", "South America", "Europe", "Africa", "South America", "Europe", "Africa", "Africa",
+          "Asia", "Africa", "North America", "Africa", "Africa", "Africa", "South America", "Asia", "South America", "Africa",
+          "Africa", "Central America", "Africa", "Europe", "Europe", "Africa", "Europe", "Africa", "Central America", "South America",
+          "Africa", "Central America", "Europe", "Africa", "Oceania", "Europe", "Europe", "Africa", "Africa", "Asia",
+          "Europe", "Africa", "Europe", "Central America", "Africa", "Africa", "South America", "Central America", "Central America", "Asia",
+          "Europe", "Europe", "Asia", "Asia", "Asia", "Asia", "Europe", "Asia", "Europe", "Central America",
+          "Asia", "Asia", "Asia", "Africa", "Asia", "Asia", "Europe", "Asia", "Africa", "Africa",
+          "Europe", "Europe", "Europe", "Africa", "Africa", "Asia", "Asia", "Africa", "Europe", "Africa",
+          "Africa", "North America", "Europe", "Asia", "Europe", "Africa", "Africa", "Asia", "Africa", "Asia",
+          "Europe", "Central America", "Africa", "Africa", "Europe", "Asia", "Asia", "Central America", "Oceania", "South America",
+          "South America", "Asia", "Europe", "Europe", "Europe", "Europe", "Africa", "Africa", "Africa", "Europe",
+          "Africa", "Asia", "Europe", "Europe", "Africa", "Asia", "Europe", "Asia", "Africa", "Africa",
+          "Europe", "Europe", "Asia", "Asia", "Asia", "Africa", "Asia", "Asia", "Africa", "Central America",
+          "Africa", "Asia", "Asia", "Africa", "Europe", "Europe", "North America", "South America", "Asia", "South America",
+          "Asia", "Asia", "Africa", "Africa", "Asia", "Asia", "Central America", "Europe", "Central America", "Asia", "Central America", "Central America", 
+          "North America", "Asia", "Europe", "Central America", "Africa", "Central America", "Africa", "Europe", 
+          "Asia", "Europe", "Asia", "Europe", "Asia", "Oceania", "Asia", "Central America", "Central America",
+          "Central America", "Oceania", "Europe", "Asia", "Africa", "Africa", "Africa", "Oceania", "Oceania", "Europe", "Europe"))
+
+save(country_mapping,
+     file = "Auxiliary/country_mapping.RData")
+
+# II. Handle country code renames before joining
+# Rename WBG to PSE (Palestine) and ZAR to COD (Dem. Rep. Congo)
+df <- df %>%
+  mutate(contcod = case_when(contcod == "WBG" ~ "PSE", # Palestine
+                             contcod == "ZAR" ~ "COD", # Democratic Republic of Congo
+                             TRUE ~ contcod))
+
+# III. Re-check unique codes after renaming
+unique_codes <- unique(df$contcod)
+
+# IV. Check which country codes in the data don't have mappings
+missing_codes <- setdiff(unique_codes, country_mapping$contcod)
+if(length(missing_codes) > 0) {
+  print("Country codes in data but not in mapping:")
+  print(missing_codes)
+}
+
+
+
+
+## 2.4. Add country information to dataset
+
+
+# I. Join the mapping to the original data
+df_updated <- df %>%
+  left_join(country_mapping, by = "contcod")
+
+# II. Check if join was successful
+print("Sample of joined data:")
+df_updated %>%
+  select(contcod, cont, reg) %>%
+  distinct() %>%
+  head(10)
+
+
+
+
+## 2.5. Reorder columns to put cont and reg as columns B and C
+
+
+# I. Get all column names
+col_names <- names(df_updated)
+print("Original column order:")
+print(col_names)
+
+# II. Reorder: first column (contcod), then cont, then reg, then rest
+# Remove cont and reg from their current positions
+other_cols <- col_names[!col_names %in% c("cont", "reg")]
+
+# III. Create new order
+df_final <- df_updated %>%
+  select(all_of(c(other_cols[1], "cont", "reg", other_cols[-1])))
+
+# IV. Verify new column order
+print("New column order (first 10 columns):")
+print(names(df_final)[1:10])
+
+
+
+
+## 2.6. Check for missing values
+
+
+# I. Check for any missing country names or regions
+missing_info <- df_final %>%
+  filter(is.na(cont) | is.na(reg)) %>%
+  select(contcod) %>%
+  distinct()
+
+# II. Display information about missing values
+if(nrow(missing_info) > 0) {
+  print("Country codes with missing names or regions:")
+  print(missing_info)
+  
+  # III. Count how many rows are affected
+  missing_rows <- df_final %>%
+    filter(is.na(cont) | is.na(reg)) %>%
+    nrow()
+  
+  # IV. Calculate percentage of data affected
+  print(paste("Total rows with missing country info:", missing_rows))
+  print(paste("Percentage of data affected:", round(missing_rows/nrow(df_final)*100, 2), "%"))
+}
+
+
+
+
+## 2.7. Create summary table
+
+
+# I. Create a summary table of countries by region
+df_reg <- df_final
+
+country_summary <- df_reg %>%
+  select(contcod, cont, reg) %>%
+  distinct() %>%
+  arrange(reg, cont)
+
+# II. Display countries grouped by region
+country_summary %>%
+  group_by(reg) %>%
+  summarise(Countries = paste(cont, collapse = ", ")) %>%
+  print()
+
+
+
+
+## 2.8. Create continental aggregates
+
+
+# I. Filter for complete data and aggregate by region
+df_cont <- df_reg %>%
+  filter(maxgroup == 100) %>%
+  group_by(reg, group) %>%
+  summarise(inc = mean(inc),
+            pop = sum(pop),
+            gdpppp = mean(gdpppp, na.rm = TRUE),
+            gini = mean(gini, na.rm = TRUE)) %>%
+  mutate(lninc = log(inc),
+         lngdpppp = log(gdpppp)) %>%
+  relocate(lninc, .after = "inc") %>%
+  relocate(lngdpppp, .after = "gdpppp")
+
+# II. Display first few rows
+head(df_cont)
+
+
+
+
+## 2.9. Save the updated dataset
+
+
+# I. Rename dataset
+rm(df_final, df_updated, missing_info)
+
+# II. Save as Excel file
+write_xlsx(df_reg, "Datasets/WYD_reg.xlsx")
+write_xlsx(df_cont, "Datasets/WYD_cont.xlsx")
+
+# III. Save multiple objects together
+save(df_reg,
+     df_cont,
+     file = "Datasets/replication_results_part2.RData")
+
+# IV. Show distribution by region
+df_reg %>%
+  group_by(reg) %>%
+  summarise(n_countries = n_distinct(contcod),
+            n_observations = n()) %>%
+  arrange(desc(n_countries))
+
